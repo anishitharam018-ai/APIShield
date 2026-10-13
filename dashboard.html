@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>APIShield: Live System Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0D0D0D;
+  --bg2: #121212;
+  --card: #1A1A1A;
+  --elev: #222222;
+  --text: #FFFFFF;
+  --text2: #E0E0E0;
+  --muted: #888888;
+  --mutedl: #AAAAAA;
+  --border: #2D2D2D;
+  --anom-bg: #4A151B;
+  --anom: #FF6B6B;
+  --ok-bg: #12281F;
+  --ok: #7FD1B9;
+  --warn-bg: #2E2410;
+  --warn: #E3B34F;
+  --sans: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+  color-scheme: dark;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+code { font-family: var(--mono); font-size: 0.9em; background: var(--elev); padding: 1px 6px; border-radius: 4px; }
+
+.page { max-width: 1600px; margin: 0 auto; padding: 32px 38px 56px; }
+h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; margin: 0 0 18px; }
+h2 { font-size: 20px; font-weight: 600; margin: 0 0 14px; line-height: 1.3; }
+section + section { margin-top: 28px; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; max-width: 90ch; }
+
+.banner { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+.banner svg { width: 16px; height: 16px; flex: none; margin-top: 4px; }
+.banner.idle { background: var(--card); border: 1px solid var(--border); color: var(--text2); }
+.banner.good { background: var(--ok-bg); color: var(--ok); }
+.banner.bad { background: var(--anom-bg); color: var(--anom); }
+
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 24px; }
+.metrics + .metrics { margin-top: 14px; }
+.metric .lab { font-size: 13px; color: var(--text2); }
+.metric .val { font-size: 30px; line-height: 1.25; font-weight: 400; font-variant-numeric: tabular-nums; }
+.metric .val.empty { color: var(--muted); }
+.metric .sub { font-size: 12px; color: var(--muted); }
+.metric .val.a { color: var(--anom); }
+
+.tbl { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; vertical-align: top; }
+tr:last-child td, tr:last-child th { border-bottom: 0; }
+thead th { color: var(--muted); font-weight: 400; font-size: 12px; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.kv th { width: 210px; color: var(--muted); font-weight: 400; font-size: 12px; white-space: nowrap; }
+.kv td { white-space: normal; overflow-wrap: anywhere; color: var(--text2); }
+td.wrap { white-space: normal; overflow-wrap: anywhere; }
+.wrap { white-space: normal; overflow-wrap: anywhere; }
+.empty-row td { text-align: center; color: var(--muted); padding: 18px; white-space: normal; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.muted { color: var(--muted); }
+
+tr.conn { cursor: pointer; }
+tr.conn:hover td { background: var(--elev); }
+tr.conn.anom td, tr.conn.anom:hover td { background: var(--anom-bg); color: var(--anom); }
+tr.conn[aria-expanded=true] td:first-child { box-shadow: inset 3px 0 0 var(--text); }
+tr.conn.fresh.anom td { animation: flash 1.4s ease-out; }
+@keyframes flash { from { background: #8a2530; } to { background: var(--anom-bg); } }
+tr.det td { background: var(--bg2); white-space: normal; color: var(--text2); padding: 12px 16px; }
+tr.det ul { margin: 6px 0 0; padding-left: 18px; }
+tr.det .mono { color: var(--mutedl); overflow-wrap: anywhere; }
+
+.ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-bottom: 12px; }
+.ctrl label { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text2); }
+.ctrl output { font-variant-numeric: tabular-nums; min-width: 3.2ch; color: var(--text); }
+input[type=range] { accent-color: var(--anom); width: 160px; }
+.btn { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 18px; font-size: 13px; cursor: pointer; color: var(--text2); }
+.btn:hover:not(:disabled) { border-color: var(--mutedl); color: var(--text); }
+.btn:active:not(:disabled) { background: var(--elev); }
+.btn:disabled { color: var(--muted); cursor: not-allowed; }
+.btn.wide { width: 100%; }
+
+#strip { display: block; width: 100%; height: 120px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+.key { display: flex; gap: 18px; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.key span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; background: var(--muted); opacity: .6; }
+.key span.a::before { background: var(--anom); opacity: 1; }
+
+.sev { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.sev.high { background: var(--anom-bg); color: var(--anom); }
+.sev.unsafe { background: var(--anom-bg); color: var(--anom); }
+.sev.medium { background: var(--warn-bg); color: var(--warn); }
+.sev.info { background: var(--elev); color: var(--mutedl); }
+.sev.safe { background: var(--ok-bg); color: var(--ok); }
+.bt-card { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--card); }
+.bt-row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.bt-row:last-of-type { border-bottom: none; }
+.bt-lab { color: var(--muted); font-size: 13px; }
+.bt-val { font-size: 13px; text-align: right; }
+.bt-verdict { margin: 14px 0; padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 14px; text-align: center; }
+.bt-verdict.safe { background: var(--ok-bg); color: var(--ok); }
+.bt-verdict.medium { background: var(--warn-bg); color: var(--warn); }
+.bt-verdict.unsafe { background: var(--anom-bg); color: var(--anom); }
+.bt-indicators { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: var(--text2); }
+.bt-indicators li { margin: 3px 0; }
+.bt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
+.bt-tile { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.bt-tile-lab { font-size: 12px; color: var(--muted); }
+.bt-tile-val { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.bt-tile.ok .bt-tile-val { color: var(--ok); }
+.bt-tile.warn .bt-tile-val { color: var(--warn); }
+.bt-tile.bad .bt-tile-val { color: var(--anom); }
+
+hr { border: 0; border-top: 1px solid var(--border); margin: 34px 0 30px; }
+pre { margin: 10px 0 0; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.6; color: var(--text2); overflow-x: auto; }
+.foot { margin-top: 28px; color: var(--muted); font-size: 13px; max-width: 90ch; }
+[hidden] { display: none !important; }
+
+@media (max-width: 800px) {
+  .page { padding: 22px 16px 40px; }
+  h1 { font-size: 26px; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+  .kv th { width: 130px; }
+}
+@media (max-width: 560px) {
+  .page { padding: 16px 12px 36px; }
+  h1 { font-size: 22px; margin-bottom: 14px; }
+  h2 { font-size: 17px; }
+  section + section { margin-top: 22px; }
+  .metrics { gap: 14px 12px; }
+  .metric .lab { font-size: 12px; }
+  .metric .val { font-size: 22px; }
+  .metric .sub { font-size: 11px; }
+  .kv th { width: 96px; font-size: 11px; padding: 7px 8px; }
+  .kv td { padding: 7px 8px; }
+  table { font-size: 12px; }
+  th, td { padding: 6px 8px; }
+  .banner { padding: 10px 12px; font-size: 13px; }
+  .ctrl { gap: 10px 14px; }
+  .ctrl label { flex-wrap: wrap; }
+  input[type=range] { width: 120px; }
+  .btn { padding: 8px 14px; }
+  .bt-card { padding: 14px; }
+  .bt-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .bt-val { text-align: left; width: 100%; }
+  .bt-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bt-tile { padding: 8px 10px; }
+  .bt-verdict { font-size: 13px; padding: 9px 12px; }
+  #strip { height: 90px; }
+}
+@media (prefers-reduced-motion: reduce) { tr.conn.fresh.anom td { animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <h1>APIShield: Live System Dashboard</h1>
+
+  <div class="banner idle" id="agent" role="status"></div>
+  <div id="howto" hidden>
+    <p class="note">Live data from a laptop or PC needs a small program running on that computer, because a web page is not allowed to look at your processes or network on its own. Run it like this, then open the address it prints:</p>
+    <pre>pip install psutil
+python apishield.py</pre>
+  </div>
+
+  <section aria-labelledby="h-where" style="margin-top:28px">
+    <h2 id="h-where">Where this site is open</h2>
+    <div class="tbl"><table class="kv"><tbody id="where"></tbody></table></div>
+    <p class="note">This is everything a web page can see about your device without help. It cannot see your files, processes or network traffic.</p>
+  </section>
+
+  <section aria-labelledby="h-pc">
+    <h2 id="h-pc">This computer</h2>
+    <div class="metrics">
+      <div class="metric"><div class="lab">CPU</div><div class="val empty" id="m-cpu">--</div><div class="sub" id="s-cpu">&nbsp;</div></div>
+      <div class="metric"><div class="lab">Memory</div><div class="val empty" id="m-mem">--</div><div class="sub" id="s-mem">&nbsp;</div></div>
+      <div class="metric"><div class="lab">Disk</div><div class="val empty" id="m-disk">--</div><div class="sub" id="s-disk">&nbsp;</div></div>
+      <div class="metric"><div class="lab">Processes</div><div class="val empty" id="m-proc">--</div><div class="sub" id="s-proc">&nbsp;</div></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="lab">Download</div><div class="val empty" id="m-down">--</div></div>
+      <div class="metric"><div class="lab">Upload</div><div class="val empty" id="m-up">--</div></div>
+      <div class="metric"><div class="lab">Open connections</div><div class="val empty" id="m-conn">--</div></div>
+      <div class="metric"><div class="lab">Anomalies in recent connections</div><div class="val empty" id="m-anom">--</div></div>
+    </div>
+    <div class="tbl" style="margin-top:16px"><table class="kv"><tbody id="host"><tr class="empty-row"><td colspan="2">Waiting for the agent.</td></tr></tbody></table></div>
+  </section>
+
+  <section aria-labelledby="h-strip">
+    <h2 id="h-strip">Anomaly score, last 60 connections</h2>
+    <div class="ctrl">
+      <label for="thr">Alert threshold <input id="thr" type="range" min="0.20" max="0.95" step="0.01" value="0.60"> <output id="thr-out" for="thr">0.60</output></label>
+      <button class="btn" type="button" id="pause">Pause feed</button>
+    </div>
+    <svg id="strip" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="Bar chart of the last 60 connection scores"></svg>
+    <div class="key"><span>Normal</span><span class="a">Anomaly</span></div>
+  </section>
+
+  <section aria-labelledby="h-feed">
+    <h2 id="h-feed">Live network activity</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>time</th><th>process</th><th>remote</th><th class="num">port</th><th class="num">score</th><th>verdict</th></tr></thead>
+        <tbody id="feed"><tr class="empty-row"><td colspan="6">No live data. Start the agent to see connections as they happen.</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note">Select a row to see why it got its score. Scores combine a small deep-learning model (an autoencoder trained live on this computer's own traffic) with transparent rules that look at the program's location, the destination and the port.</p>
+  </section>
+
+  <section aria-labelledby="h-procs">
+    <h2 id="h-procs">Processes with network activity</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th class="num">pid</th><th>name</th><th>user</th><th class="num">cpu %</th><th class="num">memory MB</th><th class="num">connections</th><th class="num">top score</th></tr></thead>
+        <tbody id="procs"><tr class="empty-row"><td colspan="7">No live data.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-bt">
+    <h2 id="h-bt">Live browser threat monitor</h2>
+    <div class="banner idle" id="bt-support"></div>
+    <div class="bt-card" id="bt-card" hidden>
+      <div class="bt-row"><span class="bt-lab">Browser</span><span class="bt-val" id="bt-browser">&mdash;</span></div>
+      <div class="bt-row"><span class="bt-lab">Current activity</span><span class="bt-val wrap mono" id="bt-url">&mdash;</span></div>
+      <div class="bt-verdict" id="bt-verdict"></div>
+      <div class="bt-row"><span class="bt-lab">Category</span><span class="bt-val" id="bt-category">&mdash;</span></div>
+      <ul class="bt-indicators" id="bt-indicators"></ul>
+      <div class="bt-grid">
+        <div class="bt-tile" id="bt-theft"><div class="bt-tile-lab">Data theft</div><div class="bt-tile-val">NOT DETECTED</div></div>
+        <div class="bt-tile ok"><div class="bt-tile-lab">Network</div><div class="bt-tile-val">MONITORED</div></div>
+      </div>
+    </div>
+    <div class="tbl" style="margin-top:16px">
+      <table>
+        <thead><tr><th>severity</th><th>type</th><th>site / file</th><th>details</th></tr></thead>
+        <tbody id="bt-feed"><tr class="empty-row"><td colspan="4">No browser activity yet. Install the APIShield browser extension to see live activity here.</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note">This section needs the free APIShield browser extension, because a webpage cannot see what other tabs are doing on its own. The extension only sends the current page's address and download names to this agent on your own computer (127.0.0.1) - never anywhere else. Classification is heuristic (pattern-based): APIShield looks for several risk indicators together and labels uncertain cases "Suspicious", not "Malicious" - it does not use a live threat-intelligence database, so treat SAFE as "no obvious red flags found", not a guarantee.</p>
+  </section>
+
+  <hr>
+
+  <section aria-labelledby="h-scan">
+    <h2 id="h-scan">Scan this computer</h2>
+    <button class="btn wide" type="button" id="scan" disabled>Scan now</button>
+    <div id="scan-out" aria-live="polite" style="margin-top:16px">
+      <div class="banner idle">The scan checks running programs, open connections, listening ports, startup entries, the hosts file and the firewall. It only reads. It never changes or stops anything.</div>
+    </div>
+  </section>
+
+  <p class="foot">The agent listens only on this computer (127.0.0.1) and other websites are not allowed to read from it. Nothing is sent to any server. Website names come from reverse DNS lookups through your normal DNS. It cannot read the contents of HTTPS traffic, passwords or messages.</p>
+</main>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var ICON_OK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8"/></svg>';
+  var ICON_INFO = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg>';
+
+  var threshold = 0.60, paused = false, online = false, last = null, expanded = null, seenIds = {}, firstRender = true;
+
+
+
+  /* ---------- where this site is open (browser side) ---------- */
+  function browserName() {
+    var ua = navigator.userAgent, m;
+    if ((m = ua.match(/Edg\/([\d.]+)/))) return 'Microsoft Edge ' + m[1].split('.')[0];
+    if ((m = ua.match(/OPR\/([\d.]+)/))) return 'Opera ' + m[1].split('.')[0];
+    if ((m = ua.match(/Firefox\/([\d.]+)/))) return 'Firefox ' + m[1].split('.')[0];
+    if ((m = ua.match(/Chrome\/([\d.]+)/))) return 'Chrome ' + m[1].split('.')[0];
+    if ((m = ua.match(/Version\/([\d.]+).*Safari/))) return 'Safari ' + m[1].split('.')[0];
+    return 'Unknown browser';
+  }
+  function osName() {
+    var ua = navigator.userAgent;
+    if (/Windows NT 10/.test(ua)) return 'Windows 10 or 11';
+    if (/Windows NT/.test(ua)) return 'Windows';
+    if (/Android/.test(ua)) return 'Android';
+    if (/iPhone|iPad/.test(ua)) return 'iOS';
+    if (/Mac OS X/.test(ua)) return 'macOS';
+    if (/Linux/.test(ua)) return 'Linux';
+    return (navigator.userAgentData && navigator.userAgentData.platform) || 'Unknown';
+  }
+  function openedFrom() {
+    var h = location.hostname;
+    if (location.protocol === 'file:') return 'A file on this computer';
+    if (h === '127.0.0.1' || h === 'localhost') return 'This computer (local APIShield agent)';
+    return 'The website ' + h;
+  }
+  function renderWhere(battery) {
+    var c = navigator.connection || {}, tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+    var rows = [
+      ['Page address', location.href],
+      ['Opened from', openedFrom()],
+      ['Browser', browserName()],
+      ['Operating system', osName()],
+      ['Screen', screen.width + ' x ' + screen.height + ' at ' + (window.devicePixelRatio || 1) + 'x'],
+      ['Language and time zone', (navigator.language || '') + (tz ? ', ' + tz : '')],
+      ['Processor threads', navigator.hardwareConcurrency || 'Not shared by this browser'],
+      ['Device memory', navigator.deviceMemory ? 'About ' + navigator.deviceMemory + ' GB (browsers round this)' : 'Not shared by this browser'],
+      ['Network', (navigator.onLine ? 'Online' : 'Offline') + (c.effectiveType ? ', ' + c.effectiveType + ' connection' : '') + (c.downlink ? ', about ' + c.downlink + ' Mbps' : '')],
+      ['Battery', battery || 'Not shared by this browser']
+    ];
+    $('#where').innerHTML = rows.map(function (r) { return '<tr><th scope="row">' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>'; }).join('');
+  }
+  renderWhere();
+  if (navigator.getBattery) {
+    navigator.getBattery().then(function (b) {
+      renderWhere(Math.round(b.level * 100) + '%' + (b.charging ? ', charging' : ', on battery'));
+    }).catch(function () {});
+  }
+
+  /* ---------- helpers ---------- */
+  function setVal(id, text, sub) {
+    var el = $(id); el.textContent = text; el.classList.toggle('empty', text === '--');
+    if (sub != null) { var s = $(id.replace('#m-', '#s-')); if (s) s.textContent = sub || '\u00a0'; }
+  }
+  function rate(b) { return b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB/s' : b >= 1e3 ? (b / 1e3).toFixed(0) + ' KB/s' : Math.round(b) + ' B/s'; }
+  function gb(b) { return (b / 1073741824).toFixed(1); }
+  function clock(t) { return new Date(t * 1000).toLocaleTimeString([], { hour12: false }); }
+  function uptime(boot) {
+    var s = Math.max(0, Date.now() / 1000 - boot), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return (d ? d + ' d ' : '') + h + ' h ' + m + ' min';
+  }
+  function isAnom(e) { return e.score >= threshold; }
+
+  /* ---------- agent state ---------- */
+  function setOnline(on, host) {
+    online = on;
+    var b = $('#agent');
+    if (on) {
+      b.className = 'banner good';
+      b.innerHTML = ICON_OK + '<span>Connected to the APIShield agent on ' + esc(host) + '. Live data below comes from this computer.</span>';
+    } else {
+      b.className = 'banner idle';
+      b.innerHTML = ICON_INFO + '<span>The APIShield agent is not running, so only browser information is shown. Start the agent on your laptop or PC to see live system data.</span>';
+    }
+    $('#howto').hidden = on;
+    $('#scan').disabled = !on;
+  }
+
+  function renderOffline() {
+    ['#m-cpu', '#m-mem', '#m-disk', '#m-proc', '#m-down', '#m-up', '#m-conn', '#m-anom'].forEach(function (id) { setVal(id, '--', ''); });
+    $('#host').innerHTML = '<tr class="empty-row"><td colspan="2">Waiting for the agent.</td></tr>';
+    $('#feed').innerHTML = '<tr class="empty-row"><td colspan="6">No live data. Start the agent to see connections as they happen.</td></tr>';
+    $('#procs').innerHTML = '<tr class="empty-row"><td colspan="7">No live data.</td></tr>';
+    $('#strip').innerHTML = '';
+    $('#bt-card').hidden = true;
+    $('#bt-support').className = 'banner idle';
+    $('#bt-support').innerHTML = ICON_INFO + '<span>Connect to the agent to see live browser activity.</span>';
+    $('#bt-feed').innerHTML = '<tr class="empty-row"><td colspan="4">No browser activity yet. Install the APIShield browser extension to see live activity here.</td></tr>';
+  }
+
+  function render(d) {
+    var m = d.metrics, h = d.host, events = d.events || [];
+    setOnline(true, h.hostname);
+    setVal('#m-cpu', m.cpu.toFixed(0) + '%', m.cpu_count + (m.cpu_count === 1 ? ' thread' : ' threads'));
+    setVal('#m-mem', m.mem_percent.toFixed(0) + '%', gb(m.mem_used) + ' of ' + gb(m.mem_total) + ' GB');
+    setVal('#m-disk', m.disk_percent.toFixed(0) + '%', gb(m.disk_used) + ' of ' + gb(m.disk_total) + ' GB');
+    setVal('#m-proc', String(m.proc_count), m.proc_net_count + ' use the network');
+    setVal('#m-down', rate(m.net_down));
+    setVal('#m-up', rate(m.net_up));
+    setVal('#m-conn', String(m.conn_count));
+    var na = events.filter(isAnom).length;
+    setVal('#m-anom', String(na));
+    $('#m-anom').classList.toggle('a', na > 0);
+
+    var hostRows = [
+      ['Computer name', h.hostname], ['Operating system', h.os], ['Signed in as', h.user],
+      ['Privileges', h.admin ? 'Administrator (full process details)' : 'Standard user (some process details are hidden; run as administrator for all)'],
+      ['Up for', uptime(h.boot_time)]
+    ];
+    (d.notes || []).forEach(function (n) { hostRows.push(['Note', n]); });
+    $('#host').innerHTML = hostRows.map(function (r) { return '<tr><th scope="row">' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>'; }).join('');
+
+    renderStrip(events);
+    renderFeed(events);
+    renderProcs(d.processes || []);
+    renderBrowserThreat(d.browser_threat);
+    firstRender = false;
+  }
+
+  var SEV_LABEL2 = { safe: 'SAFE', medium: 'MEDIUM', unsafe: 'UNSAFE' };
+
+  function renderBrowserThreat(bt) {
+    var card = $('#bt-card'), sup = $('#bt-support');
+    if (!bt || !bt.events || !bt.events.length) {
+      card.hidden = true;
+      sup.innerHTML = ICON_INFO + '<span>No data yet. Install the APIShield browser extension so the dashboard can see what your browser is doing.</span>';
+      $('#bt-feed').innerHTML = '<tr class="empty-row"><td colspan="4">No browser activity yet. Install the APIShield browser extension to see live activity here.</td></tr>';
+      return;
+    }
+    sup.innerHTML = ICON_OK + '<span>Receiving live activity from the browser extension.</span>';
+    card.hidden = false;
+    var st = bt.status;
+    $('#bt-browser').textContent = bt.browser || 'Not detected';
+    $('#bt-url').textContent = st ? st.url : 'No page visited yet';
+    $('#bt-category').textContent = st ? st.category : '\u2014';
+    var sev = st ? st.severity : 'safe';
+    var v = $('#bt-verdict');
+    v.className = 'bt-verdict ' + sev;
+    v.textContent = (sev === 'unsafe' || sev === 'medium') ? '\u26a0 ' + SEV_LABEL2[sev] + ' DETECTED' : (SEV_LABEL2[sev] || 'SAFE');
+    $('#bt-indicators').innerHTML = st ? st.indicators.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') : '';
+
+    var theft = bt.data_theft === 'suspicious';
+    var theftEl = $('#bt-theft');
+    theftEl.className = 'bt-tile' + (theft ? ' bad' : ' ok');
+    theftEl.querySelector('.bt-tile-val').textContent = theft ? 'SUSPICIOUS' : 'NOT DETECTED';
+
+    $('#bt-feed').innerHTML = bt.events.map(function (e) {
+      var label = e.type === 'nav' ? 'page visit' : 'download';
+      var what = e.type === 'download' ? (e.filename || e.domain) : (e.url || e.domain);
+      return '<tr><td><span class="sev ' + esc(e.severity) + '">' + esc(SEV_LABEL2[e.severity] || e.severity) + '</span></td>' +
+        '<td>' + esc(label) + '</td><td class="wrap mono">' + esc(what) + '</td><td class="wrap muted">' + esc(e.category) + '</td></tr>';
+    }).join('');
+  }
+
+  function renderStrip(events) {
+    var N = 60, list = events.slice(0, N).reverse(), off = N - list.length, H = 120, out = '', i;
+    for (i = 0; i < list.length; i++) {
+      var e = list[i], bh = Math.max(2, e.score * (H - 6)), a = isAnom(e);
+      out += '<rect x="' + ((off + i) * 10 + 1) + '" y="' + (H - bh) + '" width="8" height="' + bh + '" rx="1" fill="' + (a ? '#FF6B6B' : '#888888') + '" opacity="' + (a ? 1 : 0.55) + '"/>';
+    }
+    var ty = H - threshold * (H - 6);
+    out += '<line x1="0" x2="600" y1="' + ty + '" y2="' + ty + '" stroke="#AAAAAA" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>';
+    $('#strip').innerHTML = out;
+  }
+
+  function renderFeed(events) {
+    if (!events.length) { $('#feed').innerHTML = '<tr class="empty-row"><td colspan="6">No outgoing connections yet.</td></tr>'; return; }
+    var html = '';
+    events.slice(0, 25).forEach(function (e) {
+      var a = isAnom(e), fresh = !firstRender && !seenIds[e.id], open = expanded === e.id;
+      seenIds[e.id] = true;
+      html += '<tr class="conn' + (a ? ' anom' : '') + (fresh ? ' fresh' : '') + '" tabindex="0" data-id="' + e.id + '" aria-expanded="' + open + '">' +
+        '<td>' + clock(e.t) + '</td><td>' + esc(e.proc) + '</td><td>' + esc(e.domain || e.ip) + '</td>' +
+        '<td class="num">' + e.port + '</td><td class="num">' + e.score.toFixed(2) + '</td><td>' + (a ? 'Anomaly' : 'Normal') + '</td></tr>';
+      if (open) {
+        html += '<tr class="det"><td colspan="6"><b>' + (a ? 'Why it was flagged' : 'What the rules saw') + '</b><ul>' +
+          e.reasons.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>' +
+          '<div class="mono" style="margin-top:8px">pid ' + e.pid + ' &middot; ' + esc(e.exe || 'path not readable') + '<br>' + esc(e.ip) + ':' + e.port + ' &middot; ' + esc(e.proto) + ' ' + esc(e.status) + '</div></td></tr>';
+      }
+    });
+    $('#feed').innerHTML = html;
+  }
+
+  function renderProcs(list) {
+    if (!list.length) { $('#procs').innerHTML = '<tr class="empty-row"><td colspan="7">No processes are using the network right now.</td></tr>'; return; }
+    $('#procs').innerHTML = list.map(function (p) {
+      var a = p.top_score >= threshold;
+      return '<tr' + (a ? ' class="conn anom"' : '') + '><td class="num">' + p.pid + '</td><td>' + esc(p.name) + '</td><td>' + esc(p.user || '') + '</td>' +
+        '<td class="num">' + p.cpu.toFixed(1) + '</td><td class="num">' + p.mem_mb.toFixed(0) + '</td><td class="num">' + p.conns + '</td><td class="num">' + p.top_score.toFixed(2) + '</td></tr>';
+    }).join('');
+  }
+
+  function toggle(row) {
+    var id = Number(row.getAttribute('data-id'));
+    expanded = expanded === id ? null : id;
+    if (last) renderFeed(last.events || []);
+  }
+  $('#feed').addEventListener('click', function (e) {
+    var r = e.target.closest('tr.conn'); if (r) toggle(r);
+  });
+  $('#feed').addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.conn')) { e.preventDefault(); toggle(e.target); }
+  });
+
+  $('#thr').addEventListener('input', function (e) {
+    threshold = Number(e.target.value);
+    $('#thr-out').textContent = threshold.toFixed(2);
+    if (last) render(last);
+  });
+  $('#pause').addEventListener('click', function () {
+    paused = !paused;
+    this.textContent = paused ? 'Resume feed' : 'Pause feed';
+  });
+
+  /* ---------- polling ---------- */
+  function poll() {
+    if (paused) { setTimeout(poll, 1000); return; }
+    fetch('api/state', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('no agent'); return r.json(); })
+      .then(function (d) { if (!d || !d.metrics) throw new Error('no agent'); last = d; render(d); })
+      .catch(function () { if (online || firstRender) { setOnline(false); renderOffline(); } online = false; last = null; })
+      .then(function () { setTimeout(poll, 2000); });
+  }
+  setOnline(false);
+  poll();
+
+  /* ---------- scan ---------- */
+  var SEV_LABEL = { high: 'THREAT', medium: 'WARNING', info: 'INFO' };
+  $('#scan').addEventListener('click', function () {
+    var btn = this, out = $('#scan-out');
+    btn.disabled = true; btn.textContent = 'Scanning...';
+    out.innerHTML = '<div class="banner idle">' + ICON_INFO + '<span>Scanning. This can take up to half a minute.</span></div>';
+    fetch('api/scan', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('scan failed'); return r.json(); })
+      .then(function (s) {
+        var order = { high: 0, medium: 1, info: 2 };
+        var f = s.findings.slice().sort(function (a, b) { return order[a.severity] - order[b.severity]; });
+        var bad = f.filter(function (x) { return x.severity !== 'info'; }).length;
+        var threats = f.filter(function (x) { return x.severity === 'high'; }).length;
+        var html = '<div class="metrics" style="margin-bottom:16px">' +
+          '<div class="metric"><div class="lab">Processes checked</div><div class="val">' + s.summary.processes + '</div></div>' +
+          '<div class="metric"><div class="lab">Connections checked</div><div class="val">' + s.summary.connections + '</div></div>' +
+          '<div class="metric"><div class="lab">Listening ports</div><div class="val">' + s.summary.listening + '</div></div>' +
+          '<div class="metric"><div class="lab">Startup entries</div><div class="val">' + s.summary.startup + '</div></div></div>';
+        html += threats
+          ? '<div class="banner bad">' + ICON_INFO + '<span>' + threats + (threats === 1 ? ' THREAT needs' : ' THREATS need') + ' immediate attention (' + bad + ' total finding' + (bad === 1 ? '' : 's') + '). Finished in ' + s.seconds.toFixed(1) + ' s.</span></div>'
+          : bad
+          ? '<div class="banner bad">' + ICON_INFO + '<span>' + bad + (bad === 1 ? ' finding needs' : ' findings need') + ' a look. Finished in ' + s.seconds.toFixed(1) + ' s.</span></div>'
+          : '<div class="banner good">' + ICON_OK + '<span>Nothing suspicious found. Finished in ' + s.seconds.toFixed(1) + ' s.</span></div>';
+        html += '<div class="tbl" style="margin-top:14px"><table><thead><tr><th>severity</th><th>finding</th><th>details</th></tr></thead><tbody>' +
+          f.map(function (x) { return '<tr><td><span class="sev ' + esc(x.severity) + '">' + esc(SEV_LABEL[x.severity] || x.severity) + '</span></td><td class="wrap">' + esc(x.title) + '</td><td class="wrap muted">' + esc(x.detail) + '</td></tr>'; }).join('') +
+          '</tbody></table></div>';
+        html += renderBrowserScan(s.browsers);
+        out.innerHTML = html;
+      })
+      .catch(function () { out.innerHTML = '<div class="banner bad">The scan could not finish. Check that the agent is still running, then try again.</div>'; })
+      .then(function () { btn.disabled = !online; btn.textContent = 'Scan now'; });
+  });
+
+  function renderBrowserScan(b) {
+    if (!b || !b.browsers || !b.browsers.length) return '';
+    var html = '<h2 style="margin-top:28px">Browsers</h2>';
+    if (b.running && b.running.length) {
+      html += '<p class="note">Currently running: ' + b.running.map(function (r) { return esc(r.name) + ' (' + r.windows + ')'; }).join(', ') + '</p>';
+    }
+    html += '<div class="tbl" style="margin-top:8px"><table><thead><tr><th>browser</th><th>profile</th><th class="num">extensions</th><th class="num">saved logins</th><th>recent domains</th></tr></thead><tbody>' +
+      b.browsers.map(function (br) {
+        var domains = (br.history || []).slice(0, 5).map(function (h) { return esc(h.domain); }).join(', ') || '\u2014';
+        return '<tr><td>' + esc(br.name) + '</td><td>' + esc(br.profile) + '</td><td class="num">' + br.extensions.length + '</td>' +
+          '<td class="num">' + (br.saved_logins == null ? '\u2014' : br.saved_logins) + '</td><td class="wrap muted">' + domains + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="note">Saved-login counts only - the encrypted password values are never opened. Recent domains are shown for your own review only.</p>';
+    return html;
+  }
+})();
+</script>
+</body>
+</html>
